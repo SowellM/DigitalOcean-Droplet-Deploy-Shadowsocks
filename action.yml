@@ -22,27 +22,27 @@ inputs:
     description: "tls or tcp-udp"
     required: true
     default: "tls"
-  do_token:
+  digitalocean_access_token:
     description: "DigitalOcean API token"
     required: true
-  ssh_key:
-    description: "SSH key ID(s) registered in DO"
+  digitalocean_ssh_key:
+    description: "SSH key ID(s) registered in DigitalOcean"
     required: true
   region:
     description: "DigitalOcean region (e.g., nyc1, sfo3, ams3)"
-    required: true
+    required: false
     default: "sfo3"
   size:
     description: "Droplet size slug (e.g., s-1vcpu-512mb-10gb, s-1vcpu-1gb)"
-    required: true
+    required: false
     default: "s-1vcpu-512mb-10gb"
   image:
     description: "Droplet image slug (e.g., ubuntu-22-04-x64, ubuntu-24-04-x64)"
-    required: true
+    required: false
     default: "ubuntu-22-04-x64"
   hostname:
     description: "Droplet hostname"
-    required: true
+    required: false
     default: "ss"
 
 runs:
@@ -56,7 +56,7 @@ runs:
 
     - name: Auth to DO
       shell: bash
-      run: doctl auth init -t "${{ inputs.do_token }}"
+      run: doctl auth init -t "${{ inputs.digitalocean_access_token }}"
 
     - name: Generate cloud-init
       id: cloudinit
@@ -68,7 +68,7 @@ runs:
         EMAIL="${{ inputs.email }}"
         PASS="${{ inputs.password }}"
         MODE="${{ inputs.mode }}"
-        TOKEN="${{ inputs.do_token }}"
+        TOKEN="${{ inputs.digitalocean_access_token }}"
 
         CLOUDINIT=$(mktemp)
 
@@ -91,21 +91,21 @@ write_files:
       DOMAIN="$DOMAIN"
       SUBDOMAIN="$SUBDOMAIN"
       FQDN="\${SUBDOMAIN}.\${DOMAIN}"
-      DO_API_KEY="$TOKEN"
+      DIGITALOCEAN_ACCESS_TOKEN="$TOKEN"
       IP=\$(curl -s http://169.254.169.254/metadata/v1/interfaces/public/0/ipv4/address)
 
       RECORD_ID=\$(curl -s -X GET "https://api.digitalocean.com/v2/domains/\${DOMAIN}/records" \
-        -H "Authorization: Bearer \${DO_API_KEY}" \
+        -H "Authorization: Bearer \${DIGITALOCEAN_ACCESS_TOKEN}" \
         | jq -r ".domain_records[] | select(.type==\\"A\\" and .name==\\"${SUBDOMAIN}\\") | .id")
 
       if [ -z "\$RECORD_ID" ]; then
         curl -s -X POST "https://api.digitalocean.com/v2/domains/\${DOMAIN}/records" \
-          -H "Authorization: Bearer \${DO_API_KEY}" \
+          -H "Authorization: Bearer \${DIGITALOCEAN_ACCESS_TOKEN}" \
           -H "Content-Type: application/json" \
           -d "{\"type\":\"A\",\"name\":\"\${SUBDOMAIN}\",\"data\":\"\${IP}\",\"ttl\":60}"
       else
         curl -s -X PUT "https://api.digitalocean.com/v2/domains/\${DOMAIN}/records/\${RECORD_ID}" \
-          -H "Authorization: Bearer \${DO_API_KEY}" \
+          -H "Authorization: Bearer \${DIGITALOCEAN_ACCESS_TOKEN}" \
           -H "Content-Type: application/json" \
           -d "{\"type\":\"A\",\"name\":\"\${SUBDOMAIN}\",\"data\":\"\${IP}\",\"ttl\":60}"
       fi
@@ -119,7 +119,7 @@ EOF
           cat >> $CLOUDINIT <<EOF
   - mkdir -p /opt/shadowsocks
   - |
-    cat > /opt/shadowsocks/docker-compose.yml <<'EOC'
+    cat > /opt/shadowsocks/docker-compose.yml <<EOC
     version: '3.8'
     services:
       shadowsocks:
@@ -140,7 +140,7 @@ EOF
   - certbot certonly --standalone --non-interactive --agree-tos -m $EMAIL -d $FQDN
   - mkdir -p /opt/shadowsocks
   - |
-    cat > /opt/shadowsocks/docker-compose.yml <<'EOC'
+    cat > /opt/shadowsocks/docker-compose.yml <<EOC
     version: '3.8'
     services:
       shadowsocks:
@@ -170,7 +170,7 @@ EOF
           --region "${{ inputs.region }}" \
           --size "${{ inputs.size }}" \
           --image "${{ inputs.image }}" \
-          --ssh-keys "${{ inputs.ssh_key }}" \
+          --ssh-keys "${{ inputs.digitalocean_ssh_key }}" \
           --user-data-file $CLOUDINIT_FILE \
           --monitoring \
           --wait

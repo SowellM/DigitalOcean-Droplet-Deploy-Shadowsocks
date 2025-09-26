@@ -2,25 +2,29 @@
 
 This GitHub Action spins up a **DigitalOcean droplet** preconfigured with **Shadowsocks-Rust**.  
 
-It automatically:
+## Features
 
-- Creates/updates a DNS A record in your DigitalOcean domain.
+- Creates/updates a DNS A record in your DigitalOcean domain using the DigitalOcean API.
 - Deploys Shadowsocks in either **TLS (443 TCP)** mode or **TCP/UDP** mode.
 - Issues a free Let's Encrypt cert when TLS mode is selected.
 
-## 🛠 Requirements
+## Requirements
 
 - A domain managed by DigitalOcean DNS.
 - An SSH key registered in DigitalOcean.
-- GitHub repo with Actions enabled.
 
-## 🚀 Usage
+## Usage
 
-### 1. Add Secrets
+### 1. Fork the Repository
+
+1. Click the Fork button at the top of the GitHub repository page.
+2. Once forked you can use it directly from your account.
+
+### 2. Secrets Setup
 
 In your GitHub repo → **Settings → Secrets → Actions**:
-- `DO_API_TOKEN` → Your DO API token (with `read/write` for Droplets + DNS).
-- `DO_SSH_KEY` → The SSH key ID registered in your DO account (find with `doctl compute ssh-key list`).
+- `DIGITALOCEAN_ACCESS_TOKEN` → Your DO API token (with `read/write` for Droplets + DNS).
+- `DIGITALOCEAN_SSH_KEY` → The SSH key ID registered in your DigitalOcean account (find with `doctl compute ssh-key list`).
 
 ### 2. Trigger workflow
 

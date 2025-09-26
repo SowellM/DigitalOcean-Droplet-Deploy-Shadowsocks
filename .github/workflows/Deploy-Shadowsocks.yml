@@ -17,23 +17,29 @@ on:
         required: true
       mode:
         description: "tls or tcp-udp"
-        required: true
+        required: false
         default: "tls"
+      digitalocean_access_token:
+        description: "DigitalOcean API token"
+        required: true
+      digitalocean_ssh_key:
+        description: "SSH key ID(s) registered in DigitalOcean"
+        required: true
       region:
         description: "DigitalOcean region (e.g., nyc1, sfo3, ams3)"
-        required: true
+        required: false
         default: "sfo3"
       size:
         description: "Droplet size slug (e.g., s-1vcpu-512mb-10gb)"
-        required: true
+        required: false
         default: "s-1vcpu-512mb-10gb"
       image:
         description: "Droplet image slug (e.g., ubuntu-22-04-x64)"
-        required: true
+        required: false
         default: "ubuntu-22-04-x64"
       hostname:
         description: "Droplet hostname"
-        required: true
+        required: false
         default: "ss"
 
 
@@ -41,15 +47,19 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: ./github/actions/deploy-shadowsocks
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run local Shadowsocks Action
+        uses: ./
         with:
           domain: ${{ github.event.inputs.domain }}
           subdomain: ${{ github.event.inputs.subdomain }}
           email: ${{ github.event.inputs.email }}
           password: ${{ github.event.inputs.password }}
           mode: ${{ github.event.inputs.mode }}
-          do_token: ${{ secrets.DO_API_TOKEN }}
-          ssh_key: ${{ secrets.DO_SSH_KEY }}
+          digitalocean_access_token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+          digitalocean_ssh_key: ${{ secrets.DIGITALOCEAN_SSH_KEY }}
           region: ${{ github.event.inputs.region }}
           size: ${{ github.event.inputs.size }}
           image: ${{ github.event.inputs.image }}
