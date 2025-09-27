@@ -73,7 +73,7 @@ runs:
 
         CLOUDINIT=$(mktemp)
 
-        cat > $CLOUDINIT <<'EOF'
+        cat > $CLOUDINIT <<EOF
 #cloud-config
 package_update: true
 packages:
@@ -120,7 +120,7 @@ EOF
           cat >> $CLOUDINIT <<EOF
   - mkdir -p /opt/shadowsocks
   - |
-    cat > /opt/shadowsocks/docker-compose.yml <<'EOC'
+    cat > /opt/shadowsocks/docker-compose.yml <<EOC
     version: '3.8'
     services:
       shadowsocks:
@@ -141,7 +141,7 @@ EOF
   - certbot certonly --standalone --non-interactive --agree-tos -m $EMAIL -d $FQDN
   - mkdir -p /opt/shadowsocks
   - |
-    cat > /opt/shadowsocks/docker-compose.yml <<'EOC'
+    cat > /opt/shadowsocks/docker-compose.yml <<EOC
     version: '3.8'
     services:
       shadowsocks:
