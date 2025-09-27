@@ -72,6 +72,7 @@ runs:
 
         CLOUDINIT=$(mktemp)
 
+        # Base cloud-init with DNS updater
         cat > $CLOUDINIT <<'EOF'
 #cloud-config
 package_update: true
@@ -90,24 +91,24 @@ write_files:
       #!/bin/bash
       DOMAIN="$DOMAIN"
       SUBDOMAIN="$SUBDOMAIN"
-      FQDN="\${SUBDOMAIN}.\${DOMAIN}"
+      FQDN="${SUBDOMAIN}.${DOMAIN}"
       DIGITALOCEAN_ACCESS_TOKEN="$TOKEN"
-      IP=\$(curl -s http://169.254.169.254/metadata/v1/interfaces/public/0/ipv4/address)
+      IP=$(curl -s http://169.254.169.254/metadata/v1/interfaces/public/0/ipv4/address)
 
-      RECORD_ID=\$(curl -s -X GET "https://api.digitalocean.com/v2/domains/\${DOMAIN}/records" \
-        -H "Authorization: Bearer \${DIGITALOCEAN_ACCESS_TOKEN}" \
-        | jq -r ".domain_records[] | select(.type==\\"A\\" and .name==\\"${SUBDOMAIN}\\") | .id")
+      RECORD_ID=$(curl -s -X GET "https://api.digitalocean.com/v2/domains/${DOMAIN}/records" \
+        -H "Authorization: Bearer ${DIGITALOCEAN_ACCESS_TOKEN}" \
+        | jq -r ".domain_records[] | select(.type==\"A\" and .name==\"${SUBDOMAIN}\") | .id")
 
-      if [ -z "\$RECORD_ID" ]; then
-        curl -s -X POST "https://api.digitalocean.com/v2/domains/\${DOMAIN}/records" \
-          -H "Authorization: Bearer \${DIGITALOCEAN_ACCESS_TOKEN}" \
+      if [ -z "$RECORD_ID" ]; then
+        curl -s -X POST "https://api.digitalocean.com/v2/domains/${DOMAIN}/records" \
+          -H "Authorization: Bearer ${DIGITALOCEAN_ACCESS_TOKEN}" \
           -H "Content-Type: application/json" \
-          -d "{\"type\":\"A\",\"name\":\"\${SUBDOMAIN}\",\"data\":\"\${IP}\",\"ttl\":60}"
+          -d "{\"type\":\"A\",\"name\":\"${SUBDOMAIN}\",\"data\":\"${IP}\",\"ttl\":60}"
       else
-        curl -s -X PUT "https://api.digitalocean.com/v2/domains/\${DOMAIN}/records/\${RECORD_ID}" \
-          -H "Authorization: Bearer \${DIGITALOCEAN_ACCESS_TOKEN}" \
+        curl -s -X PUT "https://api.digitalocean.com/v2/domains/${DOMAIN}/records/${RECORD_ID}" \
+          -H "Authorization: Bearer ${DIGITALOCEAN_ACCESS_TOKEN}" \
           -H "Content-Type: application/json" \
-          -d "{\"type\":\"A\",\"name\":\"\${SUBDOMAIN}\",\"data\":\"\${IP}\",\"ttl\":60}"
+          -d "{\"type\":\"A\",\"name\":\"${SUBDOMAIN}\",\"data\":\"${IP}\",\"ttl\":60}"
       fi
 
 runcmd:
@@ -119,7 +120,7 @@ EOF
           cat >> $CLOUDINIT <<EOF
   - mkdir -p /opt/shadowsocks
   - |
-    cat > /opt/shadowsocks/docker-compose.yml <<EOC
+    cat > /opt/shadowsocks/docker-compose.yml <<'EOC'
     version: '3.8'
     services:
       shadowsocks:
@@ -130,8 +131,8 @@ EOF
                    -m chacha20-ietf-poly1305
                    -k $PASS
         ports:
-          - '443:443/tcp'
-          - '443:443/udp'
+          - "443:443/tcp"
+          - "443:443/udp"
     EOC
   - docker-compose -f /opt/shadowsocks/docker-compose.yml up -d
 EOF
@@ -140,7 +141,7 @@ EOF
   - certbot certonly --standalone --non-interactive --agree-tos -m $EMAIL -d $FQDN
   - mkdir -p /opt/shadowsocks
   - |
-    cat > /opt/shadowsocks/docker-compose.yml <<EOC
+    cat > /opt/shadowsocks/docker-compose.yml <<'EOC'
     version: '3.8'
     services:
       shadowsocks:
@@ -153,7 +154,7 @@ EOF
                    --plugin v2ray-plugin
                    --plugin-opts "server;tls;host=$FQDN;cert=/etc/letsencrypt/live/$FQDN/fullchain.pem;key=/etc/letsencrypt/live/$FQDN/privkey.pem"
         ports:
-          - '443:443/tcp'
+          - "443:443/tcp"
         volumes:
           - /etc/letsencrypt:/etc/letsencrypt:ro
     EOC
