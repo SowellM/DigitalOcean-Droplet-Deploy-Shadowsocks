@@ -72,8 +72,7 @@ runs:
 
         CLOUDINIT=$(mktemp)
 
-        # Base cloud-init with DNS updater
-        cat > $CLOUDINIT <<'EOF'
+cat > $CLOUDINIT <<'EOF'
 #cloud-config
 package_update: true
 packages:
@@ -117,7 +116,7 @@ runcmd:
 EOF
 
         if [ "$MODE" = "tcp-udp" ]; then
-          cat >> $CLOUDINIT <<EOF
+cat >> $CLOUDINIT <<'EOF'
   - mkdir -p /opt/shadowsocks
   - |
     cat > /opt/shadowsocks/docker-compose.yml <<'EOC'
@@ -137,7 +136,7 @@ EOF
   - docker-compose -f /opt/shadowsocks/docker-compose.yml up -d
 EOF
         else
-          cat >> $CLOUDINIT <<EOF
+cat >> $CLOUDINIT <<'EOF'
   - certbot certonly --standalone --non-interactive --agree-tos -m $EMAIL -d $FQDN
   - mkdir -p /opt/shadowsocks
   - |
