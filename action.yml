@@ -22,6 +22,12 @@ inputs:
     description: "tls or tcp-udp"
     required: true
     default: "tls"
+  digitalocean_access_token:
+    description: "DigitalOcean API token"
+    required: true
+  digitalocean_ssh_key:
+    description: "SSH key ID(s) registered in DigitalOcean"
+    required: true
   region:
     description: "DigitalOcean region (e.g., nyc1, sfo3, ams3)"
     required: false
@@ -50,7 +56,7 @@ runs:
 
     - name: Auth to DigitalOcean
       shell: bash
-      run: doctl auth init -t "${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}"
+      run: doctl auth init -t "${{ inputs.digitalocean_access_token }}"
 
     - name: Generate cloud-init
       id: cloudinit
@@ -62,11 +68,11 @@ runs:
         EMAIL="${{ inputs.email }}"
         PASS="${{ inputs.password }}"
         MODE="${{ inputs.mode }}"
-        TOKEN="${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}"
+        TOKEN="${{ inputs.digitalocean_access_token }}"
 
         CLOUDINIT=$(mktemp)
 
-        cat > $CLOUDINIT <<EOF
+        cat > $CLOUDINIT <<'EOF'
 #cloud-config
 package_update: true
 packages:
@@ -164,7 +170,7 @@ EOF
           --region "${{ inputs.region }}" \
           --size "${{ inputs.size }}" \
           --image "${{ inputs.image }}" \
-          --ssh-keys "${{ secrets.DIGITALOCEAN_SSH_KEY }}" \
+          --ssh-keys "${{ inputs.digitalocean_ssh_key }}" \
           --user-data-file $CLOUDINIT_FILE \
           --monitoring \
           --wait
