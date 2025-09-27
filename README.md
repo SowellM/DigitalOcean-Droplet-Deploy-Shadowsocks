@@ -22,8 +22,8 @@ This GitHub Action spins up a **DigitalOcean droplet** preconfigured with **Shad
 
 ### 2. Secrets Setup
 
-In your GitHub repo → **Settings → Secrets → Actions**:
-- `DIGITALOCEAN_ACCESS_TOKEN` → Your DO API token (with `read/write` for Droplets + DNS).
+In your GitHub repo → **Settings → Secrets and variables → Actions → Repository secrets**:
+- `DIGITALOCEAN_ACCESS_TOKEN` → Your DigitalOcean Access Token (with `read/write` for Droplets + DNS).
 - `DIGITALOCEAN_SSH_KEY` → The SSH key ID registered in your DigitalOcean account (find with `doctl compute ssh-key list`).
 
 ### 2. Trigger workflow

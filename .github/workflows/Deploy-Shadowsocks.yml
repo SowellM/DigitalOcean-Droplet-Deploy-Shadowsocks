@@ -51,6 +51,8 @@ jobs:
           email: ${{ github.event.inputs.email }}
           password: ${{ github.event.inputs.password }}
           mode: ${{ github.event.inputs.mode }}
+          digitalocean_access_token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+          digitalocean_ssh_key: ${{ secrets.DIGITALOCEAN_SSH_KEY }}
           region: ${{ github.event.inputs.region }}
           size: ${{ github.event.inputs.size }}
           image: ${{ github.event.inputs.image }}
