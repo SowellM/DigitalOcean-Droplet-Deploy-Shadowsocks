@@ -1,0 +1,12 @@
+#cloud-config
+package_update: true
+packages:
+  - docker.io
+  - docker-compose
+
+runcmd:
+  - mkdir -p /opt/shadowsocks
+  - docker run -d --name shadowsocks --restart unless-stopped \
+      -p 443:443/tcp -p 443:443/udp \
+      teddysun/shadowsocks-rust:latest \
+      ssserver -s 0.0.0.0:443 -m chacha20-ietf-poly1305 -k __PASSWORD__

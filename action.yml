@@ -1,5 +1,5 @@
 name: "Shadowsocks to DigitalOcean"
-description: "Deploy a DigitalOcean droplet with Shadowsocks (TLS or TCP/UDP) + DNS auto-update + Let's Encrypt."
+description: "Deploy a DigitalOcean droplet with Shadowsocks (TLS or TCP/UDP)."
 author: "Mark Sowell"
 branding:
   icon: "cloud"
@@ -21,29 +21,29 @@ inputs:
   mode:
     description: "tls or tcp-udp"
     required: true
-    default: "tls"
-  digitalocean_access_token:
-    description: "DigitalOcean API token"
-    required: true
-  digitalocean_ssh_key:
-    description: "SSH key ID(s) registered in DigitalOcean"
-    required: true
+    default: "tcp-udp"
   region:
-    description: "DigitalOcean region (e.g., nyc1, sfo3, ams3)"
+    description: "DigitalOcean region"
     required: false
     default: "sfo3"
   size:
-    description: "Droplet size slug (e.g., s-1vcpu-512mb-10gb, s-1vcpu-1gb)"
+    description: "Droplet size slug"
     required: false
     default: "s-1vcpu-512mb-10gb"
   image:
-    description: "Droplet image slug (e.g., ubuntu-22-04-x64, ubuntu-24-04-x64)"
+    description: "Droplet image slug"
     required: false
     default: "ubuntu-22-04-x64"
   hostname:
     description: "Droplet hostname"
     required: false
     default: "ss"
+  digitalocean_access_token:
+    description: "DigitalOcean API token"
+    required: true
+  digitalocean_ssh_key:
+    description: "SSH key ID(s) in DigitalOcean"
+    required: true
 
 runs:
   using: "composite"
@@ -56,113 +56,13 @@ runs:
 
     - name: Auth to DigitalOcean
       shell: bash
-      run: |
-        doctl auth init -t "${{ inputs.digitalocean_access_token }}"
+      run: doctl auth init -t "${{ inputs.digitalocean_access_token }}"
 
-    - name: Generate cloud-init
-      id: cloudinit
+    - name: Prepare cloud-init
       shell: bash
       run: |
-        DOMAIN="${{ inputs.domain }}"
-        SUBDOMAIN="${{ inputs.subdomain }}"
-        FQDN="$SUBDOMAIN.$DOMAIN"
-        EMAIL="${{ inputs.email }}"
-        PASS="${{ inputs.password }}"
-        MODE="${{ inputs.mode }}"
-        TOKEN="${{ inputs.digitalocean_access_token }}"
-
-        CLOUDINIT=$(mktemp)
-
-        cat > $CLOUDINIT <<EOF
-#cloud-config
-package_update: true
-packages:
-  - curl
-  - jq
-  - certbot
-  - socat
-  - docker.io
-  - docker-compose
-
-write_files:
-  - path: /root/update-dns.sh
-    permissions: '0755'
-    content: |
-      #!/bin/bash
-      DOMAIN="$DOMAIN"
-      SUBDOMAIN="$SUBDOMAIN"
-      FQDN="\${SUBDOMAIN}.\${DOMAIN}"
-      DIGITALOCEAN_ACCESS_TOKEN="$TOKEN"
-      IP=\$(curl -s http://169.254.169.254/metadata/v1/interfaces/public/0/ipv4/address)
-
-      RECORD_ID=\$(curl -s -X GET "https://api.digitalocean.com/v2/domains/\${DOMAIN}/records" \
-        -H "Authorization: Bearer \${DIGITALOCEAN_ACCESS_TOKEN}" \
-        | jq -r ".domain_records[] | select(.type==\\"A\\" and .name==\\"${SUBDOMAIN}\\") | .id")
-
-      if [ -z "\$RECORD_ID" ]; then
-        curl -s -X POST "https://api.digitalocean.com/v2/domains/\${DOMAIN}/records" \
-          -H "Authorization: Bearer \${DIGITALOCEAN_ACCESS_TOKEN}" \
-          -H "Content-Type: application/json" \
-          -d "{\"type\":\"A\",\"name\":\"\${SUBDOMAIN}\",\"data\":\"\${IP}\",\"ttl\":60}"
-      else
-        curl -s -X PUT "https://api.digitalocean.com/v2/domains/\${DOMAIN}/records/\${RECORD_ID}" \
-          -H "Authorization: Bearer \${DIGITALOCEAN_ACCESS_TOKEN}" \
-          -H "Content-Type: application/json" \
-          -d "{\"type\":\"A\",\"name\":\"\${SUBDOMAIN}\",\"data\":\"\${IP}\",\"ttl\":60}"
-      fi
-
-runcmd:
-  - /root/update-dns.sh
-  - sleep 30
-EOF
-
-        if [ "$MODE" = "tcp-udp" ]; then
-          cat >> $CLOUDINIT <<EOF
-  - mkdir -p /opt/shadowsocks
-  - |
-    cat > /opt/shadowsocks/docker-compose.yml <<EOC
-    version: '3.8'
-    services:
-      shadowsocks:
-        image: teddysun/shadowsocks-rust:latest
-        restart: unless-stopped
-        command: >
-          ssserver -s 0.0.0.0:443
-                   -m chacha20-ietf-poly1305
-                   -k $PASS
-        ports:
-          - '443:443/tcp'
-          - '443:443/udp'
-    EOC
-  - docker-compose -f /opt/shadowsocks/docker-compose.yml up -d
-EOF
-        else
-          cat >> $CLOUDINIT <<EOF
-  - certbot certonly --standalone --non-interactive --agree-tos -m $EMAIL -d $FQDN
-  - mkdir -p /opt/shadowsocks
-  - |
-    cat > /opt/shadowsocks/docker-compose.yml <<EOC
-    version: '3.8'
-    services:
-      shadowsocks:
-        image: teddysun/shadowsocks-rust:latest
-        restart: unless-stopped
-        command: >
-          ssserver -s 0.0.0.0:443
-                   -m chacha20-ietf-poly1305
-                   -k $PASS
-                   --plugin v2ray-plugin
-                   --plugin-opts "server;tls;host=$FQDN;cert=/etc/letsencrypt/live/$FQDN/fullchain.pem;key=/etc/letsencrypt/live/$FQDN/privkey.pem"
-        ports:
-          - '443:443/tcp'
-        volumes:
-          - /etc/letsencrypt:/etc/letsencrypt:ro
-    EOC
-  - docker-compose -f /opt/shadowsocks/docker-compose.yml up -d
-EOF
-        fi
-
-        echo "CLOUDINIT_FILE=$CLOUDINIT" >> $GITHUB_ENV
+        cp .cloud-init.yml cloud-init.yml
+        sed -i "s/__PASSWORD__/${{ inputs.password }}/g" cloud-init.yaml
 
     - name: Create Droplet
       shell: bash
@@ -172,6 +72,14 @@ EOF
           --size "${{ inputs.size }}" \
           --image "${{ inputs.image }}" \
           --ssh-keys "${{ inputs.digitalocean_ssh_key }}" \
-          --user-data-file $CLOUDINIT_FILE \
+          --user-data-file cloud-init.yaml \
           --monitoring \
-          --wait
+          --wait \
+          --format ID,PublicIPv4 \
+          --no-header > droplet.txt
+
+        DROPLET_ID=$(cut -d' ' -f1 droplet.txt)
+        DROPLET_IP=$(cut -d' ' -f2 droplet.txt)
+
+        echo "droplet_id=$DROPLET_ID" >> $GITHUB_OUTPUT
+        echo "droplet_ip=$DROPLET_IP" >> $GITHUB_OUTPUT

@@ -18,17 +18,17 @@ on:
       mode:
         description: "tls or tcp-udp"
         required: false
-        default: "tls"
+        default: "tcp-udp"
       region:
-        description: "DigitalOcean region (e.g., nyc1, sfo3, ams3)"
+        description: "DigitalOcean region"
         required: false
         default: "sfo3"
       size:
-        description: "Droplet size slug (e.g., s-1vcpu-512mb-10gb)"
+        description: "Droplet size slug"
         required: false
         default: "s-1vcpu-512mb-10gb"
       image:
-        description: "Droplet image slug (e.g., ubuntu-22-04-x64)"
+        description: "Droplet image slug"
         required: false
         default: "ubuntu-22-04-x64"
       hostname:
@@ -40,10 +40,10 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
+      - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Run local Shadowsocks Action
+      - name: Run Shadowsocks Action
         uses: ./
         with:
           domain: ${{ github.event.inputs.domain }}
@@ -51,9 +51,33 @@ jobs:
           email: ${{ github.event.inputs.email }}
           password: ${{ github.event.inputs.password }}
           mode: ${{ github.event.inputs.mode }}
-          digitalocean_access_token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
-          digitalocean_ssh_key: ${{ secrets.DIGITALOCEAN_SSH_KEY }}
           region: ${{ github.event.inputs.region }}
           size: ${{ github.event.inputs.size }}
           image: ${{ github.event.inputs.image }}
           hostname: ${{ github.event.inputs.hostname }}
+          digitalocean_access_token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+          digitalocean_ssh_key: ${{ secrets.DIGITALOCEAN_SSH_KEY }}
+          
+      - name: Update DNS Record
+        run: |
+          DOMAIN=${{ github.event.inputs.domain }}
+          SUBDOMAIN=${{ github.event.inputs.subdomain }}
+          FQDN="$SUBDOMAIN.$DOMAIN"
+          TOKEN=${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+          IP=${{ steps.shadowsocks.outputs.droplet_ip }}
+
+          RECORD_ID=$(curl -s -X GET "https://api.digitalocean.com/v2/domains/$DOMAIN/records" \
+            -H "Authorization: Bearer $TOKEN" \
+            | jq -r ".domain_records[] | select(.type==\"A\" and .name==\"$SUBDOMAIN\") | .id")
+
+          if [ -z "$RECORD_ID" ]; then
+            curl -s -X POST "https://api.digitalocean.com/v2/domains/$DOMAIN/records" \
+              -H "Authorization: Bearer $TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "{\"type\":\"A\",\"name\":\"$SUBDOMAIN\",\"data\":\"$IP\",\"ttl\":60}"
+          else
+            curl -s -X PUT "https://api.digitalocean.com/v2/domains/$DOMAIN/records/$RECORD_ID" \
+              -H "Authorization: Bearer $TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "{\"type\":\"A\",\"name\":\"$SUBDOMAIN\",\"data\":\"$IP\",\"ttl\":60}"
+          fi
