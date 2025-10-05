@@ -36,3 +36,4 @@ runcmd:
         ssserver -s 0.0.0.0:443 \
                  -m chacha20-ietf-poly1305 \
                  -k "{{PASSWORD}}"
+    fi
