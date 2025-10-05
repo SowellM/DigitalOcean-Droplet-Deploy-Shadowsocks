@@ -1,127 +1,151 @@
 name: "DigitalOcean Droplet Deploy Shadowsocks"
-description: "DigitalOcean Droplet Deploy Shadowsocks"
-author: "Mark Sowell"
+description: "Deploy a DigitalOcean Droplet with Docker, Shadowsocks (TLS or TCP/UDP), and automatic HTTPS"
+author: marksowell
 branding:
-  icon: "cloud"
-  color: "blue"
+  icon: "send"
+  color: "green"
 
 inputs:
+  DIGITALOCEAN_ACCESS_TOKEN:
+    description: "DigitalOcean API token."
+    required: true
+  DIGITALOCEAN_SSH_KEY_ID:
+    description: "DigitalOcean SSH key ID."
+    required: true
   domain:
-    description: "Base domain (example.com)"
+    description: "Root domain (example.com)."
     required: true
   subdomain:
-    description: "Subdomain (e.g. ss)"
-    required: true
-  email:
-    description: "Email for Let's Encrypt"
+    description: "Subdomain (e.g., app, www, test). Leave blank for root."
+    required: false
+  hostname:
+    description: "Droplet hostname."
     required: true
   password:
-    description: "Shadowsocks password"
+    description: "Shadowsocks password."
     required: true
   mode:
-    description: "tls or tcp-udp"
-    required: true
+    description: "tls or tcp-udp (default: tcp-udp)."
+    required: false
     default: "tcp-udp"
   region:
-    description: "DigitalOcean region"
-    required: false
+    description: "DigitalOcean region (default: sfo3)."
     default: "sfo3"
   size:
-    description: "Droplet size slug"
-    required: false
+    description: "Droplet size slug (default: s-1vcpu-512mb-10gb)."
     default: "s-1vcpu-512mb-10gb"
   image:
-    description: "Droplet image slug"
-    required: false
+    description: "Droplet image slug (default: ubuntu-22-04-x64)."
     default: "ubuntu-22-04-x64"
-  hostname:
-    description: "Droplet hostname"
-    required: false
-    default: "ss"
-  digitalocean_access_token:
-    description: "DigitalOcean API token"
-    required: true
-  digitalocean_ssh_key:
-    description: "SSH key ID(s) in DigitalOcean"
-    required: true
 
 runs:
   using: "composite"
   steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
     - name: Install doctl
+      uses: digitalocean/action-doctl@v2
+      with:
+        token: ${{ inputs.DIGITALOCEAN_ACCESS_TOKEN }}
+
+    - name: Prepare cloud-init with vars
       shell: bash
       run: |
-        curl -sL https://github.com/digitalocean/doctl/releases/download/v1.107.0/doctl-1.107.0-linux-amd64.tar.gz \
-          | tar -xz -C /usr/local/bin doctl
+        DOMAIN="${{ inputs.domain }}"
+        SUBDOMAIN="${{ inputs.subdomain }}"
+        EMAIL="admin@${DOMAIN}"
+        DOMAIN="${{ inputs.domain }}"
+        MODE="${{ inputs.mode }}"
+        PASSWORD="${{ inputs.password }}"
 
-    - name: Auth to DigitalOcean
-      shell: bash
-      run: doctl auth init -t "${{ inputs.digitalocean_access_token }}"
+        if [ -z "$SUBDOMAIN" ] || [ "$SUBDOMAIN" = "@" ]; then
+          FQDN="$DOMAIN"
+        else
+          FQDN="$SUBDOMAIN.$DOMAIN"
+        fi
 
-    - name: Prepare cloud-init
-      shell: bash
-      run: |
-        cp .cloud-init.yml cloud-init.yml
-        sed -i "s/__PASSWORD__/${{ inputs.password }}/g" cloud-init.yml
-    - name: Prepare cloud-init
-  shell: bash
-  run: |
-    cp cloud-init-template.yml cloud-init.yml
-
-    if [ "${{ inputs.mode }}" = "tls" ]; then
-      DOCKER_COMPOSE="version: '3.8'
-services:
-  shadowsocks:
-    image: teddysun/shadowsocks-rust:latest
-    restart: unless-stopped
-    command: >
-      ssserver -s 0.0.0.0:443
-               -m chacha20-ietf-poly1305
-               -k ${{ inputs.password }}
-               --plugin v2ray-plugin
-               --plugin-opts \"server;tls;host=${{ inputs.subdomain }}.${{ inputs.domain }};cert=/etc/letsencrypt/live/${{ inputs.subdomain }}.${{ inputs.domain }}/fullchain.pem;key=/etc/letsencrypt/live/${{ inputs.subdomain }}.${{ inputs.domain }}/privkey.pem\"
-    ports:
-      - '443:443'
-    volumes:
-      - /etc/letsencrypt:/etc/letsencrypt:ro"
-    else
-      DOCKER_COMPOSE="version: '3.8'
-services:
-  shadowsocks:
-    image: teddysun/shadowsocks-rust:latest
-    restart: unless-stopped
-    command: >
-      ssserver -s 0.0.0.0:443
-               -m chacha20-ietf-poly1305
-               -k ${{ inputs.password }}
-    ports:
-      - '443:443/tcp'
-      - '443:443/udp'"
-    fi
-
-    sed -i "s#__DOCKER_COMPOSE__#${DOCKER_COMPOSE}#g" cloud-init.yml
-    sed -i "s#__PASSWORD__#${{ inputs.password }}#g" cloud-init.yml
-    sed -i "s#__DOMAIN__#${{ inputs.domain }}#g" cloud-init.yml
-    sed -i "s#__SUBDOMAIN__#${{ inputs.subdomain }}#g" cloud-init.yml
-    sed -i "s#__EMAIL__#${{ inputs.email }}#g" cloud-init.yml
-    sed -i "s#__MODE__#${{ inputs.mode }}#g" cloud-init.yml
+        sed "s/{{EMAIL}}/$EMAIL/g; s/{{FQDN}}/$FQDN/g; s/{{MODE}}/$MODE/g; s/{{PASSWORD}}/$PASSWORD/g" cloud-init.yml > cloud-init-final.yml
+        echo "fqdn=$FQDN" >> $GITHUB_OUTPUT
 
     - name: Create Droplet
+      id: droplet
       shell: bash
       run: |
-        doctl compute droplet create "${{ inputs.hostname }}" \
-          --region "${{ inputs.region }}" \
-          --size "${{ inputs.size }}" \
-          --image "${{ inputs.image }}" \
-          --ssh-keys "${{ inputs.digitalocean_ssh_key }}" \
-          --user-data-file cloud-init.yaml \
-          --monitoring \
-          --wait \
-          --format ID,PublicIPv4 \
-          --no-header > droplet.txt
+        REGION="${{ inputs.region }}"
+        SIZE="${{ inputs.size }}"
+        IMAGE="${{ inputs.image }}"
+        HOSTNAME="${{ inputs.hostname }}"
 
-        DROPLET_ID=$(cut -d' ' -f1 droplet.txt)
-        DROPLET_IP=$(cut -d' ' -f2 droplet.txt)
+        echo "Creating droplet: $HOSTNAME ($SIZE, $REGION, $IMAGE)"
 
-        echo "droplet_id=$DROPLET_ID" >> $GITHUB_OUTPUT
-        echo "droplet_ip=$DROPLET_IP" >> $GITHUB_OUTPUT
+        doctl compute droplet create "$HOSTNAME" \
+          --region "$REGION" \
+          --size "$SIZE" \
+          --image "$IMAGE" \
+          --ssh-keys ${{ inputs.DIGITALOCEAN_SSH_KEY_ID }} \
+          --user-data-file cloud-init-final.yml \
+          --wait
+
+        IP=$(doctl compute droplet list "$HOSTNAME" --format PublicIPv4 --no-header)
+        echo "droplet_ip=$IP" >> $GITHUB_OUTPUT
+
+    - name: Create/Update DNS Record
+      id: dns
+      shell: bash
+      run: |
+        DOMAIN="${{ inputs.domain }}"
+        SUBDOMAIN="${{ inputs.subdomain }}"
+        IP="${{ steps.droplet.outputs.droplet_ip }}"
+
+        if [ -z "$SUBDOMAIN" ]; then
+          SUBDOMAIN="@"
+        fi
+
+        echo "Updating DNS for $SUBDOMAIN.$DOMAIN -> $IP"
+
+        RECORD_ID=$(doctl compute domain records list "$DOMAIN" \
+          --format ID,Type,Name,Data \
+          --no-header | awk -v sname="$SUBDOMAIN" '$2=="A" && $3==sname {print $1}')
+
+        if [ -z "$RECORD_ID" ]; then
+          echo "Record not found. Creating..."
+          doctl compute domain records create "$DOMAIN" \
+            --record-type A \
+            --record-name "$SUBDOMAIN" \
+            --record-data "$IP"
+        else
+          echo "Record exists. Updating..."
+          doctl compute domain records update "$DOMAIN" \
+            --record-id "$RECORD_ID" \
+            --record-data "$IP"
+        fi
+
+        echo "fqdn=$SUBDOMAIN.$DOMAIN" >> $GITHUB_OUTPUT
+        
+    - name: Wait for Shadowsocks service
+      shell: bash
+      run: |
+        FQDN="${{ steps.dns.outputs.fqdn }}"
+        PORT=443
+        echo "Waiting for Shadowsocks to respond on $FQDN:$PORT..."
+        for i in {1..30}; do
+          if timeout 5 bash -c "</dev/tcp/$FQDN/$PORT" 2>/dev/null; then
+            echo "✅ Shadowsocks is listening on $FQDN:$PORT"
+            exit 0
+          fi
+          echo "⏳ Attempt $i/30: Port $PORT not open yet... retrying in 30s"
+          sleep 30
+        done
+        echo "❌ Timeout: Shadowsocks service did not start in time"
+        exit 1
+
+    - name: Show Summary
+      shell: bash
+      run: |
+        echo "### ✅ Droplet Deployment Complete" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- Hostname: \`${{ inputs.hostname }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "- Public IP: \`${{ steps.droplet.outputs.droplet_ip }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "- DNS: \`${{ steps.dns.outputs.fqdn }}\` → \`${{ steps.droplet.outputs.droplet_ip }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "- MODE: \`${{ inputs.mode }}\`" >> $GITHUB_STEP_SUMMARY

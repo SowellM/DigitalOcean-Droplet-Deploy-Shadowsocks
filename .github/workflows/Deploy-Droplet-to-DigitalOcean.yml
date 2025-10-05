@@ -1,0 +1,50 @@
+name: Deploy Droplet to DigitalOcean
+
+on:
+  workflow_dispatch:
+    inputs:
+      domain:
+        description: "Root domain (example.com)."
+        required: true
+      subdomain:
+        description: "Subdomain (e.g., app, www, test). Leave blank for root."
+        required: false
+      hostname:
+        description: "Droplet hostname."
+        required: true
+      password:
+        description: "Shadowsocks password."
+        required: true
+      mode:
+        description: "tls or tcp-udp (default: tcp-udp)."
+        required: false
+        default: "tcp-udp"
+      region:
+        description: "DigitalOcean region (default: sfo3)."
+        default: "sfo3"
+        required: false
+      size:
+        description: "Droplet size slug (default: s-1vcpu-512mb-10gb)."
+        default: "s-1vcpu-512mb-10gb"
+        required: false
+      image:
+        description: "Droplet image slug (default: ubuntu-22-04-x64)."
+        default: "ubuntu-22-04-x64"
+        required: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: marksowell/DigitalOcean-Droplet-Deploy-Shadowsocks@v1
+        with:
+          DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+          DIGITALOCEAN_SSH_KEY_ID: ${{ secrets.DIGITALOCEAN_SSH_KEY_ID }}
+          domain: ${{ github.event.inputs.domain }}
+          subdomain: ${{ github.event.inputs.subdomain }}
+          hostname: ${{ github.event.inputs.hostname }}
+          password: ${{ github.event.inputs.password }}
+          mode: ${{ github.event.inputs.mode }}
+          region: ${{ github.event.inputs.region }}
+          size: ${{ github.event.inputs.size }}
+          image: ${{ github.event.inputs.image }}

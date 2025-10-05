@@ -1,21 +1,38 @@
 #cloud-config
 package_update: true
 packages:
-  - curl
-  - jq
-  - certbot
-  - socat
   - docker.io
   - docker-compose
-
-write_files:
-  - path: /opt/shadowsocks/docker-compose.yml
-    permissions: '0644'
-    content: |
-      __DOCKER_COMPOSE__
+  - certbot
 
 runcmd:
-  - if [ "__MODE__" = "tls" ]; then
-      certbot certonly --standalone --non-interactive --agree-tos -m __EMAIL__ -d __SUBDOMAIN__.__DOMAIN__;
-    fi
-  - docker-compose -f /opt/shadowsocks/docker-compose.yml up -d
+  - systemctl enable docker
+  - systemctl start docker
+  - |
+    while ! docker info >/dev/null 2>&1; do
+      echo "Docker not ready yet... retrying in 15s"
+      sleep 15
+    done
+    certbot certonly --standalone --non-interactive --agree-tos \
+      -m {{EMAIL}} \
+      -d {{FQDN}}
+    if [ "{{MODE}}" = "tls" ]; then
+      echo "Starting Shadowsocks server with TLS..."
+      docker run -d --name shadowsocks --restart unless-stopped \
+        -p 443:443 \
+        -v /etc/letsencrypt:/etc/letsencrypt:ro \
+        teddysun/shadowsocks-rust:latest \
+        ssserver -s 0.0.0.0:443 \
+                 -m chacha20-ietf-poly1305 \
+                 -k "{{PASSWORD}}" \
+                 --plugin v2ray-plugin \
+                 --plugin-opts "server;tls;host={{FQDN}};cert=/etc/letsencrypt/live/{{FQDN}}/fullchain.pem;key=/etc/letsencrypt/live/{{FQDN}}/privkey.pem"
+    else
+      echo "Starting Shadowsocks server with tcp-udp..."
+      docker run -d --name shadowsocks --restart unless-stopped \
+        -p 443:443/tcp \
+        -p 443:443/udp \
+        teddysun/shadowsocks-rust:latest \
+        ssserver -s 0.0.0.0:443 \
+                 -m chacha20-ietf-poly1305 \
+                 -k "{{PASSWORD}}"
