@@ -1,6 +1,6 @@
-# Deploy Shadowsocks to DigitalOcean
+# DigitalOcean Droplet Deploy Shadowsocks
 
-This GitHub Action spins up a **DigitalOcean droplet** preconfigured with **Shadowsocks-Rust**.  
+This GitHub Action deploys a **DigitalOcean droplet** preconfigured with **Shadowsocks-Rust**.  
 
 ## Features
 
