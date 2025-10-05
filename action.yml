@@ -1,5 +1,5 @@
-name: "Shadowsocks to DigitalOcean"
-description: "Deploy a DigitalOcean droplet with Shadowsocks (TLS or TCP/UDP)."
+name: "DigitalOcean Droplet Deploy Shadowsocks"
+description: "DigitalOcean Droplet Deploy Shadowsocks"
 author: "Mark Sowell"
 branding:
   icon: "cloud"
@@ -62,7 +62,49 @@ runs:
       shell: bash
       run: |
         cp .cloud-init.yml cloud-init.yml
-        sed -i "s/__PASSWORD__/${{ inputs.password }}/g" cloud-init.yaml
+        sed -i "s/__PASSWORD__/${{ inputs.password }}/g" cloud-init.yml
+    - name: Prepare cloud-init
+  shell: bash
+  run: |
+    cp cloud-init-template.yml cloud-init.yml
+
+    if [ "${{ inputs.mode }}" = "tls" ]; then
+      DOCKER_COMPOSE="version: '3.8'
+services:
+  shadowsocks:
+    image: teddysun/shadowsocks-rust:latest
+    restart: unless-stopped
+    command: >
+      ssserver -s 0.0.0.0:443
+               -m chacha20-ietf-poly1305
+               -k ${{ inputs.password }}
+               --plugin v2ray-plugin
+               --plugin-opts \"server;tls;host=${{ inputs.subdomain }}.${{ inputs.domain }};cert=/etc/letsencrypt/live/${{ inputs.subdomain }}.${{ inputs.domain }}/fullchain.pem;key=/etc/letsencrypt/live/${{ inputs.subdomain }}.${{ inputs.domain }}/privkey.pem\"
+    ports:
+      - '443:443'
+    volumes:
+      - /etc/letsencrypt:/etc/letsencrypt:ro"
+    else
+      DOCKER_COMPOSE="version: '3.8'
+services:
+  shadowsocks:
+    image: teddysun/shadowsocks-rust:latest
+    restart: unless-stopped
+    command: >
+      ssserver -s 0.0.0.0:443
+               -m chacha20-ietf-poly1305
+               -k ${{ inputs.password }}
+    ports:
+      - '443:443/tcp'
+      - '443:443/udp'"
+    fi
+
+    sed -i "s#__DOCKER_COMPOSE__#${DOCKER_COMPOSE}#g" cloud-init.yml
+    sed -i "s#__PASSWORD__#${{ inputs.password }}#g" cloud-init.yml
+    sed -i "s#__DOMAIN__#${{ inputs.domain }}#g" cloud-init.yml
+    sed -i "s#__SUBDOMAIN__#${{ inputs.subdomain }}#g" cloud-init.yml
+    sed -i "s#__EMAIL__#${{ inputs.email }}#g" cloud-init.yml
+    sed -i "s#__MODE__#${{ inputs.mode }}#g" cloud-init.yml
 
     - name: Create Droplet
       shell: bash

@@ -1,12 +1,21 @@
 #cloud-config
 package_update: true
 packages:
+  - curl
+  - jq
+  - certbot
+  - socat
   - docker.io
   - docker-compose
 
+write_files:
+  - path: /opt/shadowsocks/docker-compose.yml
+    permissions: '0644'
+    content: |
+      __DOCKER_COMPOSE__
+
 runcmd:
-  - mkdir -p /opt/shadowsocks
-  - docker run -d --name shadowsocks --restart unless-stopped \
-      -p 443:443/tcp -p 443:443/udp \
-      teddysun/shadowsocks-rust:latest \
-      ssserver -s 0.0.0.0:443 -m chacha20-ietf-poly1305 -k __PASSWORD__
+  - if [ "__MODE__" = "tls" ]; then
+      certbot certonly --standalone --non-interactive --agree-tos -m __EMAIL__ -d __SUBDOMAIN__.__DOMAIN__;
+    fi
+  - docker-compose -f /opt/shadowsocks/docker-compose.yml up -d
