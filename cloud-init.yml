@@ -28,7 +28,8 @@ runcmd:
                  --plugin v2ray-plugin \
                  --plugin-opts "server;tls;host={{FQDN}};cert=/etc/letsencrypt/live/{{FQDN}}/fullchain.pem;key=/etc/letsencrypt/live/{{FQDN}}/privkey.pem"
       mkdir -p /etc/letsencrypt/renewal-hooks/deploy
-      echo -e '#!/bin/bash\ndocker restart shadowsocks' > /etc/letsencrypt/renewal-hooks/deploy/restart-shadowsocks.sh
+      echo '#!/bin/bash' > /etc/letsencrypt/renewal-hooks/deploy/restart-shadowsocks.sh
+      echo 'docker restart shadowsocks' >> /etc/letsencrypt/renewal-hooks/deploy/restart-shadowsocks.sh
       chmod +x /etc/letsencrypt/renewal-hooks/deploy/restart-shadowsocks.sh
     else
       echo "Starting Shadowsocks server with tcp-udp..."
