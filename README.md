@@ -1,6 +1,6 @@
 # DigitalOcean Droplet Deploy Shadowsocks GitHub Action
 
-This GitHub Action deploys a **DigitalOcean Droplet** with Docker and **Shadowsocks-Rust**, in TLS camouflage or TCP/UDP mode. It automatically creates free Let’s Encrypt TLS certificates and manages DNS records in DigitalOcean.  
+This GitHub Action deploys a **DigitalOcean Droplet** with Docker and a **Shadowsocks-Rust** container, in TLS camouflage or TCP/UDP mode. It automatically creates free Let’s Encrypt TLS certificates and manages DNS records in DigitalOcean.  
 
 <br>
 <p>
